@@ -84,6 +84,8 @@ def main():
         try:
             loop = eventloop.EventLoop()
             dns_resolver.add_to_loop(loop)
+
+            #add tcp_servers into event loop,when a call is in,it will be invoked.
             list(map(lambda s: s.add_to_loop(loop), tcp_servers + udp_servers))
 
             daemon.set_user(config.get('user', None))

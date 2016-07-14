@@ -166,10 +166,10 @@ class EventLoop(object):
         events = self._impl.poll(timeout)
         return [(self._fdmap[fd][0], fd, event) for fd, event in events]
 
-    def add(self, f, mode, handler):
-        fd = f.fileno()
-        self._fdmap[fd] = (f, handler)
-        self._impl.register(fd, mode)
+    def add(self, f, mode, handler):#f:sock,mode:eventName,handler:dnsresolver
+        fd = f.fileno()#as f means system file descriptor,so fd means fileDescipter,it's a small number.
+        self._fdmap[fd] = (f, handler)#storage socket and corresponding owner
+        self._impl.register(fd, mode)#use low level poll managment to fork fd with mode
 
     def remove(self, f):
         fd = f.fileno()
@@ -189,7 +189,7 @@ class EventLoop(object):
     def stop(self):
         self._stopping = True
 
-    def run(self):
+    def run(self):#this is what all the socket connections polled in.
         events = []
         while not self._stopping:
             asap = False
@@ -209,7 +209,7 @@ class EventLoop(object):
                     continue
 
             for sock, fd, event in events:
-                handler = self._fdmap.get(fd, None)
+                handler = self._fdmap.get(fd, None)#python dictionary get value by key,default is None.
                 if handler is not None:
                     handler = handler[1]
                     try:
