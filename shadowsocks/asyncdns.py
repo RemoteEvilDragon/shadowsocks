@@ -250,14 +250,16 @@ class DNSResolver(object):
 
     def __init__(self):
         self._loop = None
-        self._hosts = {}
+        
         self._hostname_status = {}
         self._hostname_to_cb = {}
         self._cb_to_hostname = {}
         self._cache = lru_cache.LRUCache(timeout=300)
         self._sock = None
-        self._servers = None
-        self._parse_resolv()
+        
+        self._hosts = {}
+        self._servers = None #used to record dns resolve ips.
+        self._parse_resolv()#fetch current ip resolver here
         self._parse_hosts()
         # TODO monitor hosts change and reload hosts
         # TODO parse /etc/gai.conf and follow its rules
