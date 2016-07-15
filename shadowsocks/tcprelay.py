@@ -158,6 +158,7 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
         # check if status is changed
         # only update if dirty
         dirty = False
+        # dirty = False
         if stream == STREAM_DOWN:
             if self._downstream_status != status:
                 self._downstream_status = status
