@@ -92,7 +92,7 @@ BUF_SIZE = 32 * 1024
 
 class TCPRelayHandler(object):#class here is used to detect every poll event,every active connection.
     def __init__(self, server, fd_to_handlers, loop, local_sock, config,
-                 dns_resolver, is_local):
+                 dns_resolver):
         self._server = server
         self._fd_to_handlers = fd_to_handlers
         self._loop = loop
@@ -103,28 +103,35 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
 
         # TCP Relay works as either sslocal or ssserver
         # if is_local, this is sslocal
-        self._is_local = is_local
+
+        # self._is_local = is_local
+
         self._stage = STAGE_INIT
         self._encryptor = encrypt.Encryptor(config['password'],
                                             config['method'])
+
+
+        self._from_encryptor = encrypt.Encryptor(config['local_pwd'],config['local_method'])
+        self._to_encryptor = encrypt.Encryptor(config['server_pwd'],config['server_method'])
+
         self._fastopen_connected = False
+
         self._data_to_write_to_local = []
         self._data_to_write_to_remote = []
+
         self._upstream_status = WAIT_STATUS_READING
         self._downstream_status = WAIT_STATUS_INIT
+
         self._client_address = local_sock.getpeername()[:2]
         self._remote_address = None
-        if 'forbidden_ip' in config:
-            self._forbidden_iplist = config['forbidden_ip']
-        else:
-            self._forbidden_iplist = None
-        if is_local:
-            self._chosen_server = self._get_a_server()
+
+        self._chosen_server = [self._config['server'],self._config['server_port']];
+
         fd_to_handlers[local_sock.fileno()] = self
+
         local_sock.setblocking(False)
         local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        loop.add(local_sock, eventloop.POLL_IN | eventloop.POLL_ERR,
-                 self._server)
+        loop.add(local_sock, eventloop.POLL_IN | eventloop.POLL_ERR,self._server)
         self.last_activity = 0
         self._update_activity()
 
@@ -136,16 +143,6 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
     @property
     def remote_address(self):
         return self._remote_address
-
-    def _get_a_server(self):
-        server = self._config['server']
-        server_port = self._config['server_port']
-        if type(server_port) == list:
-            server_port = random.choice(server_port)
-        if type(server) == list:
-            server = random.choice(server)
-        logging.debug('chosen server: %s:%d', server, server_port)
-        return server, server_port
 
     def _update_activity(self, data_len=0):
         # tell the TCP Relay we have activities recently
@@ -326,10 +323,7 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
         if len(addrs) == 0:
             raise Exception("getaddrinfo failed for %s:%d" % (ip, port))
         af, socktype, proto, canonname, sa = addrs[0]
-        if self._forbidden_iplist:
-            if common.to_str(sa[0]) in self._forbidden_iplist:
-                raise Exception('IP %s is in forbidden list, reject' %
-                                common.to_str(sa[0]))
+        
         remote_sock = socket.socket(af, socktype, proto)
         self._remote_sock = remote_sock
         self._fd_to_handlers[remote_sock.fileno()] = self
@@ -550,9 +544,9 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
 
 
 class TCPRelay(object):
-    def __init__(self, config, dns_resolver, is_local, stat_callback=None):
+    def __init__(self, config, dns_resolver, stat_callback=None):
         self._config = config
-        self._is_local = is_local
+        # self._is_local = is_local
         self._dns_resolver = dns_resolver
         self._closed = False
         self._eventloop = None
@@ -564,12 +558,12 @@ class TCPRelay(object):
         self._timeout_offset = 0   # last checked position for timeout
         self._handler_to_timeouts = {}  # key: handler value: index in timeouts
 
-        if is_local:
+        # if is_local:
             listen_addr = config['local_address']
             listen_port = config['local_port']
-        else:
-            listen_addr = config['server']
-            listen_port = config['server_port']
+        # else:
+        #     listen_addr = config['server']
+        #     listen_port = config['server_port']
         self._listen_port = listen_port
 
         addrs = socket.getaddrinfo(listen_addr, listen_port, 0,
@@ -582,13 +576,8 @@ class TCPRelay(object):
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind(sa)
         server_socket.setblocking(False)
-        if config['fast_open']:
-            try:
-                server_socket.setsockopt(socket.SOL_TCP, 23, 5)
-            except socket.error:
-                logging.error('warning: fast open is not available')
-                self._config['fast_open'] = False
         server_socket.listen(1024)
+
         self._server_socket = server_socket
         self._stat_callback = stat_callback
 
@@ -676,7 +665,7 @@ class TCPRelay(object):
                 conn = self._server_socket.accept()
                 TCPRelayHandler(self, self._fd_to_handlers,
                                 self._eventloop, conn[0], self._config,
-                                self._dns_resolver, self._is_local)
+                                self._dns_resolver)
             except (OSError, IOError) as e:
                 error_no = eventloop.errno_from_exception(e)
                 if error_no in (errno.EAGAIN, errno.EINPROGRESS,
