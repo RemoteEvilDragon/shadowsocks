@@ -89,14 +89,15 @@ WAIT_STATUS_READWRITING = WAIT_STATUS_READING | WAIT_STATUS_WRITING
 
 BUF_SIZE = 32 * 1024
 
-
-class TCPRelayHandler(object):#class here is used to detect every poll event,every active connection.
+#class here is used to detect every poll event,every active connection.
+class TCPRelayHandler(object):
     def __init__(self, server, fd_to_handlers, loop, local_sock, config,
                  dns_resolver):
-        self._server = server
+        #server here is a tcpRelay,never forget this
+        self._server = server 
         self._fd_to_handlers = fd_to_handlers
         self._loop = loop
-        self._local_sock = local_sock
+        self._local_sock = local_sock#local sock means current sock
         self._remote_sock = None
         self._config = config
         self._dns_resolver = dns_resolver
@@ -105,8 +106,7 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
         # if is_local, this is sslocal
 
         # self._is_local = is_local
-        #test git
-        #test git
+        
         self._stage = STAGE_INIT
         self._encryptor = encrypt.Encryptor(config['password'],
                                             config['method'])
@@ -132,9 +132,10 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
 
         local_sock.setblocking(False)
         local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+
         loop.add(local_sock, eventloop.POLL_IN | eventloop.POLL_ERR,self._server)
         self.last_activity = 0
-        self._update_activity()
+        self._update_activity()#by here begin to loop tcprelay,update tcpRelay activities here~
 
     def __hash__(self):
         # default __hash__ is id / 16
@@ -475,8 +476,7 @@ class TCPRelayHandler(object):#class here is used to detect every poll event,eve
             logging.error(eventloop.get_sock_error(self._remote_sock))
         self.destroy()
 
-    def handle_event(self, sock, event):
-        # handle all events in this handler and dispatch them to methods
+    def handle_event(self, sock, event):# handle all events in this handler and dispatch them to methods
         if self._stage == STAGE_DESTROYED:
             logging.debug('ignore handle_event: destroyed')
             return
@@ -599,7 +599,7 @@ class TCPRelay(object):
             self._timeouts[index] = None
             del self._handler_to_timeouts[hash(handler)]
 
-    def update_activity(self, handler, data_len):
+    def update_activity(self, handler, data_len):#This is invoked from tcpRelayHandler,processing an update.
         if data_len and self._stat_callback:
             self._stat_callback(self._listen_port, data_len)
 
@@ -652,10 +652,12 @@ class TCPRelay(object):
             self._timeout_offset = pos
 
     def handle_event(self, sock, fd, event):
+        #derived from event loop,eventloop gets infor from system layer.
         # handle events and dispatch to handlers
         if sock:
             logging.log(shell.VERBOSE_LEVEL, 'fd %d %s', fd,
                         eventloop.EVENT_NAMES.get(event, event))
+        #say like a poll in event come in,and a new response socket will be established.
         if sock == self._server_socket:
             if event & eventloop.POLL_ERR:
                 # TODO
@@ -664,6 +666,8 @@ class TCPRelay(object):
                 logging.debug('accept')
                 #this will return (conn,addres):conn is a new socket used to receive data or send data
                 conn = self._server_socket.accept()
+                #self._fd_to_handlers will be passed as a parameter to tcpRelayHandler
+                #then current tcphandler and filedescripter will be written into this handlers
                 TCPRelayHandler(self, self._fd_to_handlers,
                                 self._eventloop, conn[0], self._config,
                                 self._dns_resolver)
@@ -676,7 +680,7 @@ class TCPRelay(object):
                     shell.print_exception(e)
                     if self._config['verbose']:
                         traceback.print_exc()
-        else:
+        else:#other socks comes in,we get their handlers,and process event here.
             if sock:
                 handler = self._fd_to_handlers.get(fd, None)
                 if handler:

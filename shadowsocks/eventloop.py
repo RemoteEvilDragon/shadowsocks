@@ -211,7 +211,7 @@ class EventLoop(object):
             for sock, fd, event in events:
                 handler = self._fdmap.get(fd, None)#python dictionary get value by key,default is None.
                 if handler is not None:
-                    handler = handler[1]
+                    handler = handler[1]#tcprelay
                     try:
                         handler.handle_event(sock, fd, event)
                     except (OSError, IOError) as e:
